@@ -53,7 +53,6 @@ const daka_and_baobei = async (config) => {
     pageEx.setViewport({
         width: 600, height: 1800,
     })
-    await pageEx.screenshot({ path: "check.png", fullPage: true });//不能删 删了就出错
 
     const daka_state = await Promise.all([pageEx.click('#report-submit-btn-a24'), pageEx.waitForNavigation({ waitUntil: 'networkidle0' })]).catch(async (e) => {
         console.log("错误：打卡失败。");
