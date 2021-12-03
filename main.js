@@ -8,16 +8,17 @@ configs.forEach((config) => {
     config.passwd = decrypt(config.passwd_encrypted);
 })
 
-const daka_and_baobei = async (config) => {
-    const browser = await puppeteer.launch();
+const daka_and_baobei = async ({ browser, config }) => {
     const page = await browser.newPage();
     await page.goto("https://passport.ustc.edu.cn/login?service=https%3A%2F%2Fweixine.ustc.edu.cn%2F2020%2Fcaslogin");
     const pageEx = puppeteer_jquery.pageExtend(page);
 
     console.log("正在进行:", config.id);
-    await pageEx.jQuery('#username').val(config.id);
-    await pageEx.jQuery('#password').val(config.passwd);
-    await pageEx.evaluate(validatecode);
+    await Promise.all([
+        pageEx.jQuery('#username').val(config.id),
+        pageEx.jQuery('#password').val(config.passwd),
+        pageEx.evaluate(validatecode)
+    ]);
     await pageEx.screenshot({ path: "login.png" });
 
     const login_state = await Promise.all([pageEx.click('#login'), pageEx.waitForNavigation({ waitUntil: 'networkidle0' })]).catch((e) => {
@@ -25,8 +26,7 @@ const daka_and_baobei = async (config) => {
         return "error";
     });
     if (login_state === "error") {
-        await browser.close();
-        return;
+        return 0;
     }
     console.log("统一身份认证已登录");
 
@@ -53,41 +53,55 @@ const daka_and_baobei = async (config) => {
     pageEx.setViewport({
         width: 600, height: 1800,
     })
+    await pageEx.screenshot({ path: "check.png", fullPage: true });
 
-    const daka_state = await Promise.all([pageEx.click('#report-submit-btn-a24'), pageEx.waitForNavigation({ waitUntil: 'networkidle0' })]).catch(async (e) => {
+    const daka_state = await Promise.all([pageEx.waitForNavigation({ waitUntil: 'networkidle0' }), pageEx.click('#report-submit-btn-a24')]).catch(async (e) => {
         console.log("错误：打卡失败。");
         await pageEx.screenshot({ path: "daka_error.png" });
         return "error";
     })
     if (daka_state === "error") {
-        await browser.close();
-        return;
+        return 1;
     }
     console.log("打卡已完成");
     await pageEx.screenshot({ path: "daka.png" });
 
     await pageEx.goto("https://weixine.ustc.edu.cn/2020/apply/daliy");
     await pageEx.click('.form-group.clearfix > label');
-    const baobei_state = await Promise.all([pageEx.click('#report-submit-btn'), pageEx.waitForNavigation({ waitUntil: 'networkidle0' })]).catch(async (e) => {
+    const baobei_state = await Promise.all([pageEx.waitForNavigation({ waitUntil: 'networkidle0' }), pageEx.click('#report-submit-btn')]).catch(async (e) => {
         console.log("错误：无法完成出校报备。");
         await pageEx.screenshot({ path: "baobei_error.png" });
         return "error";
     });
     if (baobei_state === "error") {
-        await browser.close();
-        return;
+        return 2;
     }
     console.log("出校报备已完成");
     await pageEx.screenshot({ path: "baobei.png" });
 
-    await browser.close();
+    return 3;
 };
 
 const main = async () => {
     for (const config of configs) {
-        await daka_and_baobei(config);
-        console.log("OK");
+        let state = -1;
+        let retry_sec = 10;
+        const browser = await puppeteer.launch({ args: [] });
+        while (true) {
+            state = await daka_and_baobei({ browser, config }).catch((e) => {
+                console.log("network error, try again later");
+                return -1;
+            });
+            if (state !== -1) break;
+            await new Promise((res) => {
+                console.log(`in ${retry_sec} seconds`);
+                setTimeout(() => { res() }, retry_sec * 1000);
+                retry_sec = retry_sec < 3000 ? retry_sec * 2 : retry_sec + 300;
+            })
+        }
+        browser.close();
     }
+    console.log("OK");
 }
 
 main();
