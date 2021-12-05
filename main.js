@@ -19,9 +19,13 @@ const daka_and_baobei = async ({ browser, config }) => {
         pageEx.jQuery('#password').val(config.passwd),
         pageEx.evaluate(validatecode)
     ]);
-    await pageEx.screenshot({ path: "login.png" });
 
-    const login_state = await Promise.all([pageEx.click('#login'), pageEx.waitForNavigation({ waitUntil: 'networkidle0' })]).catch((e) => {
+    const login_state = await Promise.all([
+        pageEx.waitForNavigation({ waitUntil: 'networkidle0' }),
+        pageEx.evaluate(() => {
+            $('#login').click();
+        })
+    ]).catch((e) => {
         console.log("错误：统一身份认证登录失败。");
         return "error";
     });
@@ -30,33 +34,44 @@ const daka_and_baobei = async ({ browser, config }) => {
     }
     console.log("统一身份认证已登录");
 
-    await pageEx.click('input[name="now_address"][value="1"]')//内地
-
     await pageEx.evaluate(() => {
+        $('input[name="now_address"][value="1"]').click();//内地
+
         $('button[data-id="now_province"]+.dropdown-menu [data-original-index="12"] > a').click();//安徽省
         $('button[data-id="now_city"]+.dropdown-menu [data-original-index="1"] > a').click();//合肥市
         $('button[data-id="now_country"]+.dropdown-menu [data-original-index="3"] > a').click();//蜀山区
         $('button[data-id="body-condition"]+.dropdown-menu [data-original-index="1"] > a').click();//正常
         $('button[data-id="body-status"]+.dropdown-menu [data-original-index="1"] > a').click();//正常在校园内
-    })
 
-    await pageEx.click('input[name="is_inschool"][value="4"]');//中区
-    await pageEx.click('input[name="has_fever"][value="0"]');//无症状
-    await pageEx.click('input[name="last_touch_sars"][value="0"]');//无接触
-    await pageEx.click('input[name="is_danger"][value="0"]');//无风险
-    await pageEx.click('input[name="is_goto_danger"][value="0"]');//无旅居
+        $('input[name="is_inschool"][value="4"]').click();//中区
+        $('input[name="has_fever"][value="0"]').click();//无症状
+        $('input[name="last_touch_sars"][value="0"]').click();//无接触
+        $('input[name="is_danger"][value="0"]').click();//无风险
+        $('input[name="is_goto_danger"][value="0"]').click();//无旅居
+    });
 
-    await pageEx.jQuery('[name="jinji_lxr"]').val(config.jinji[0]);
-    await pageEx.jQuery('[name="jinji_guanxi"]').val(config.jinji[1]);
-    await pageEx.jQuery('[name="jiji_mobile"]').val(config.jinji[2]);
-    await pageEx.jQuery('[name="other_detail"]').val(config.teshu);
+    if (await pageEx.jQuery('#report-submit-btn-a24').attr("disabled")) {
+        await pageEx.evaluate(() => {
+            $("#confirm-report-hook").click();
+        })
+        console.log("本人承诺以上填写内容均为最新信息，且真实可靠");
+    }
+
+    await Promise.all([
+        pageEx.jQuery('[name="jinji_lxr"]').val(config.jinji[0]),
+        pageEx.jQuery('[name="jinji_guanxi"]').val(config.jinji[1]),
+        pageEx.jQuery('[name="jiji_mobile"]').val(config.jinji[2]),
+        pageEx.jQuery('[name="other_detail"]').val(config.teshu)
+    ]);
     pageEx.setViewport({
         width: 600, height: 1800,
     })
-    await pageEx.screenshot({ path: "check.png", fullPage: true });
 
-    const daka_state = await Promise.all([pageEx.waitForNavigation({ waitUntil: 'networkidle0' }), pageEx.click('#report-submit-btn-a24')]).catch(async (e) => {
-        console.log("错误：打卡失败。");
+    const daka_state = await Promise.all([
+        pageEx.waitForNavigation({ waitUntil: 'networkidle0' }),
+        pageEx.evaluate(() => { $('#report-submit-btn-a24').click(); })
+    ]).catch(async (e) => {
+        console.log("错误：打卡失败。", e);
         await pageEx.screenshot({ path: "daka_error.png" });
         return "error";
     })
@@ -64,12 +79,21 @@ const daka_and_baobei = async ({ browser, config }) => {
         return 1;
     }
     console.log("打卡已完成");
-    await pageEx.screenshot({ path: "daka.png" });
+    await pageEx.screenshot({ path: "daka_success.png" });
 
     await pageEx.goto("https://weixine.ustc.edu.cn/2020/apply/daliy");
-    await pageEx.click('.form-group.clearfix > label');
-    const baobei_state = await Promise.all([pageEx.waitForNavigation({ waitUntil: 'networkidle0' }), pageEx.click('#report-submit-btn')]).catch(async (e) => {
-        console.log("错误：无法完成出校报备。");
+    if (await pageEx.jQuery('#report-submit-btn').attr('title') === '请先勾选承诺书') {
+        await pageEx.evaluate(() => {
+            $('.form-group.clearfix > label').click();
+        });
+        console.log("本人承诺：本人已阅读并充分了解上述须知内容，并将严格遵守安徽省和学校的疫情防控相关规定。");
+    }
+
+    const baobei_state = await Promise.all([
+        pageEx.waitForNavigation({ waitUntil: 'networkidle0' }),
+        pageEx.evaluate(() => { $('#report-submit-btn').click(); })
+    ]).catch(async (e) => {
+        console.log("错误：无法完成出校报备。", e);
         await pageEx.screenshot({ path: "baobei_error.png" });
         return "error";
     });
@@ -77,7 +101,7 @@ const daka_and_baobei = async ({ browser, config }) => {
         return 2;
     }
     console.log("出校报备已完成");
-    await pageEx.screenshot({ path: "baobei.png" });
+    await pageEx.screenshot({ path: "baobei_success.png" });
 
     return 3;
 };
@@ -87,6 +111,7 @@ const main = async () => {
         let state = -1;
         let retry_sec = 10;
         const browser = await puppeteer.launch({ args: [] });
+        const page = await browser.newPage();
         while (true) {
             state = await daka_and_baobei({ browser, config }).catch((e) => {
                 console.log("network error, try again later");
