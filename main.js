@@ -6,6 +6,7 @@ const { decrypt } = require("./crypt");
 
 const configs = JSON.parse(fs.readFileSync("password.json").toString());
 configs.forEach((config) => {
+    if (config.passwd) return;
     if (config.passwd_encrypted) config.passwd = decrypt(config.passwd_encrypted);
     if (!config.passwd) throw new Error("password not found");
 })
