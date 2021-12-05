@@ -1,3 +1,4 @@
+"use strict";
 const puppeteer = require("puppeteer");
 const puppeteer_jquery = require("puppeteer-jquery");
 const fs = require("fs");
@@ -5,11 +6,21 @@ const { decrypt } = require("./crypt");
 
 const configs = JSON.parse(fs.readFileSync("password.json").toString());
 configs.forEach((config) => {
-    config.passwd = decrypt(config.passwd_encrypted);
+    if (config.passwd_encrypted) config.passwd = decrypt(config.passwd_encrypted);
+    if (!config.passwd) throw new Error("password not found");
 })
 
 const daka_and_baobei = async ({ browser, config }) => {
     const page = await browser.newPage();
+
+    page.on('dialog', async dialog => {
+        console.log(dialog.message());
+        await dialog.dismiss();
+        if (dialog.message().match(/登录密码错误/)) throw "登录密码错误";
+        else if (dialog.message().match(/验证码错误/)) throw "验证码错误";
+        else console.log("unhandledDialog");
+    });
+
     await page.goto("https://passport.ustc.edu.cn/login?service=https%3A%2F%2Fweixine.ustc.edu.cn%2F2020%2Fcaslogin");
     const pageEx = puppeteer_jquery.pageExtend(page);
 
@@ -25,8 +36,10 @@ const daka_and_baobei = async ({ browser, config }) => {
         pageEx.evaluate(() => {
             $('#login').click();
         })
-    ]).catch((e) => {
-        console.log("错误：统一身份认证登录失败。");
+    ]).catch(async (e) => {
+        console.log("错误：统一身份认证登录失败。", e);
+        await pageEx.screenshot({ path: "login_error.png" });
+        console.log("寄")
         return "error";
     });
     if (login_state === "error") {
@@ -114,7 +127,7 @@ const main = async () => {
         const page = await browser.newPage();
         while (true) {
             state = await daka_and_baobei({ browser, config }).catch((e) => {
-                console.log("network error, try again later");
+                console.log("network error, try again later:\n", e);
                 return -1;
             });
             if (state !== -1) break;
