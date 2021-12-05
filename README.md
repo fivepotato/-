@@ -60,7 +60,7 @@ node encrypt [your-password]
 ]
 ```
 
-如果你已经填写了passwd_encrypted字段，请将passwd字段保持为null。
+如果你已经填写了```passwd_encrypted```字段，请将```passwd```字段保持为null。
 
 请确保你运行环境的安全，不要将账号配置中的任何内容泄漏给其他人！
 
