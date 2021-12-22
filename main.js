@@ -9,7 +9,7 @@ configs.forEach((config) => {
     if (config.passwd) return;
     if (config.passwd_encrypted) config.passwd = decrypt(config.passwd_encrypted);
     if (!config.passwd) throw new Error("password not found");
-})
+});
 
 const daka_and_baobei = async ({ browser, config }) => {
     const page = await browser.newPage();
@@ -22,7 +22,17 @@ const daka_and_baobei = async ({ browser, config }) => {
         else console.log("unhandledDialog");
     });
 
-    await page.goto("https://passport.ustc.edu.cn/login?service=https%3A%2F%2Fweixine.ustc.edu.cn%2F2020%2Fcaslogin");
+    await page.setRequestInterception(true);
+    page.on('request', (req) => {
+        const type = req.resourceType();
+        console.log(type);
+        if (type === "stylesheet") req.abort();
+        else if (type === "image" && req.url().slice(-5) !== "login") req.abort();
+        else req.continue();
+    })
+
+    //一定要等到验证码加载完 否则validatecode写不进去
+    await page.goto("https://passport.ustc.edu.cn/login?service=https%3A%2F%2Fweixine.ustc.edu.cn%2F2020%2Fcaslogin", { waitUntil: "networkidle0" });
     const pageEx = puppeteer_jquery.pageExtend(page);
 
     console.log("正在进行:", config.id);
@@ -104,7 +114,7 @@ const daka_and_baobei = async ({ browser, config }) => {
     }
 
     const baobei_state = await Promise.all([
-        pageEx.waitForNavigation({ waitUntil: 'networkidle0' }),
+        pageEx.waitForNavigation({ waitUntil: 'domcontentloaded' }),
         pageEx.evaluate(() => { $('#report-submit-btn').click(); })
     ]).catch(async (e) => {
         console.log("错误：无法完成出校报备。", e);
@@ -124,7 +134,7 @@ const main = async () => {
     for (const config of configs) {
         let state = -1;
         let retry_sec = 10;
-        const browser = await puppeteer.launch({ args: [] });
+        const browser = await puppeteer.launch({ args: [], headless: true, });
         const page = await browser.newPage();
         while (true) {
             state = await daka_and_baobei({ browser, config }).catch((e) => {
