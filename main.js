@@ -25,7 +25,6 @@ const daka_and_baobei = async ({ browser, config }) => {
     await page.setRequestInterception(true);
     page.on('request', (req) => {
         const type = req.resourceType();
-        console.log(type);
         if (type === "stylesheet") req.abort();
         else if (type === "image" && req.url().slice(-5) !== "login") req.abort();
         else req.continue();
