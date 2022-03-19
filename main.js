@@ -58,15 +58,8 @@ const daka_and_baobei = async ({ browser, config }) => {
     console.log("统一身份认证已登录");
 
     await pageEx.evaluate(() => {
-        $('input[name="now_address"][value="1"]').click();//内地
+        $('input[name="juzhudi"][value="中校区"]').click();//中区
 
-        $('button[data-id="now_province"]+.dropdown-menu [data-original-index="12"] > a').click();//安徽省
-        $('button[data-id="now_city"]+.dropdown-menu [data-original-index="1"] > a').click();//合肥市
-        $('button[data-id="now_country"]+.dropdown-menu [data-original-index="3"] > a').click();//蜀山区
-        $('button[data-id="body-condition"]+.dropdown-menu [data-original-index="1"] > a').click();//正常
-        $('button[data-id="body-status"]+.dropdown-menu [data-original-index="1"] > a').click();//正常在校园内
-
-        $('input[name="is_inschool"][value="4"]').click();//中区
         $('input[name="has_fever"][value="0"]').click();//无症状
         $('input[name="last_touch_sars"][value="0"]').click();//无接触
         $('input[name="is_danger"][value="0"]').click();//无风险
@@ -105,12 +98,13 @@ const daka_and_baobei = async ({ browser, config }) => {
     await pageEx.screenshot({ path: "daka_success.png" });
 
     await pageEx.goto("https://weixine.ustc.edu.cn/2020/apply/daliy");
-    if (await pageEx.jQuery('#report-submit-btn').attr('title') === '请先勾选承诺书') {
-        await pageEx.evaluate(() => {
-            $('.form-group.clearfix > label').click();
-        });
-        console.log("本人承诺：本人已阅读并充分了解上述须知内容，并将严格遵守安徽省和学校的疫情防控相关规定。");
-    }
+    await pageEx.evaluate(() => {
+        $('[name="lived"][value="2"]').click(); //合肥其他校区
+        $('[name="reason"][value="3"]').click(); //跨校区上课、实验等
+
+        $('.form-group.clearfix > label').click();
+    });
+    console.log("我已知悉以上规定并保证按要求执行，做好个人防护，少出行不聚集。");
 
     const baobei_state = await Promise.all([
         pageEx.waitForNavigation({ waitUntil: 'domcontentloaded' }),
@@ -120,6 +114,14 @@ const daka_and_baobei = async ({ browser, config }) => {
         await pageEx.screenshot({ path: "baobei_error.png" });
         return "error";
     });
+
+    await pageEx.evaluate(()=>{
+        $('input[name="return_college[]"][value="西校区"]').click();
+    });
+    await Promise.all([
+        pageEx.waitForNavigation({ waitUntil: 'domcontentloaded' }),
+        pageEx.evaluate(() => { $('#report-submit-btn').click(); })
+    ])
     if (baobei_state === "error") {
         return 2;
     }
