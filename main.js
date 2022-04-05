@@ -115,8 +115,13 @@ const daka_and_baobei = async ({ browser, config }) => {
         return "error";
     });
 
-    await pageEx.evaluate(()=>{
+    await pageEx.evaluate(() => {
         $('input[name="return_college[]"][value="西校区"]').click();
+        $('input[name="return_college[]"][value="东校区"]').click();
+        $('input[name="return_college[]"][value="南校区"]').click();
+        $('input[name="return_college[]"][value="北校区"]').click();
+        $('input[name="return_college[]"][value="中校区"]').click();
+        $('input[name="reason"]').val("自习");
     });
     await Promise.all([
         pageEx.waitForNavigation({ waitUntil: 'domcontentloaded' }),
@@ -135,7 +140,7 @@ const main = async () => {
     for (const config of configs) {
         let state = -1;
         let retry_sec = 10;
-        const browser = await puppeteer.launch({ args: [], headless: true, });
+        const browser = await puppeteer.launch({ args: [], headless: false, });
         const page = await browser.newPage();
         while (true) {
             state = await daka_and_baobei({ browser, config }).catch((e) => {
